@@ -1,12 +1,13 @@
 [package]
 edition = "2021"
 name = "ignored_analyzer"
-version = "0.0.0"
+version = "0.0.1"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
+solang-parser = "0.1.11"
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 napi = { version = "2.2.0", default-features = false, features = ["napi4"] }
 napi-derive = "2.2.0"
