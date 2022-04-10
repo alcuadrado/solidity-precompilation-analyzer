@@ -9,10 +9,18 @@ use std::result::Result;
 
 enum State {
     TopLevel,
-    PragmaFound,
-    PragmaSolidityFound,
     IgnoringStatement,
     CurlyBracesOpened(usize),
+    PragmaFound,
+    PragmaSolidityFound,
+    ImportFound,
+    ImportStarFound,
+    ImportStarAsFound,
+    ImportStarAsIdentifierFound,
+    ImportStarAsIdentifierFromFound,
+    ImportCurlyBracesOpened(usize),
+    ImportSimbolAliasesFound,
+    ImportSimbolAliasesFromFound,
 }
 
 #[napi(object)]
@@ -23,7 +31,6 @@ pub struct AnalysisResult {
 
 #[napi]
 pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
-    // Create the lexer
     let mut comments = Vec::new();
     let lexer = Lexer::new(&input, 0, &mut comments);
 
@@ -44,6 +51,9 @@ pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
                 Token::Pragma => {
                     state = State::PragmaFound;
                 }
+                Token::Import => {
+                    state = State::ImportFound;
+                }
                 Token::OpenCurlyBrace => {
                     state = State::CurlyBracesOpened(1);
                 }
@@ -53,6 +63,28 @@ pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
                 _ => {
                     state = State::IgnoringStatement;
                 }
+            },
+            State::IgnoringStatement => match token {
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {}
+            },
+            State::CurlyBracesOpened(braces) => match token {
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(braces + 1);
+                }
+                Token::CloseCurlyBrace => {
+                    if braces == 1 {
+                        state = State::TopLevel;
+                    } else {
+                        state = State::CurlyBracesOpened(braces - 1);
+                    }
+                }
+                _ => {}
             },
             State::PragmaFound => match token {
                 Token::Identifier(id) => {
@@ -87,27 +119,125 @@ pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
                     state = State::IgnoringStatement;
                 }
             },
-            State::IgnoringStatement => match token {
+            State::ImportFound => match token {
+                Token::StringLiteral(literal) => {
+                    imports.push(literal.to_string());
+                    state = State::IgnoringStatement;
+                }
+                Token::Mul => {
+                    state = State::ImportStarFound;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::ImportCurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
+            },
+            State::ImportStarFound => match token {
+                Token::As => {
+                    state = State::ImportStarAsFound;
+                }
                 Token::OpenCurlyBrace => {
                     state = State::CurlyBracesOpened(1);
                 }
                 Token::Semicolon => {
                     state = State::TopLevel;
                 }
-                _ => {}
+                _ => {
+                    state = State::IgnoringStatement;
+                }
             },
-            State::CurlyBracesOpened(braces) => match token {
+            State::ImportStarAsFound => match token {
+                Token::Identifier(_) => {
+                    state = State::ImportStarAsIdentifierFound;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
+            },
+            State::ImportStarAsIdentifierFound => match token {
+                Token::Identifier("from") => {
+                    state = State::ImportStarAsIdentifierFromFound;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
+            },
+            State::ImportStarAsIdentifierFromFound => match token {
+                Token::StringLiteral(literal) => {
+                    imports.push(literal.to_string());
+                    state = State::IgnoringStatement;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
+            },
+            State::ImportCurlyBracesOpened(braces) => match token {
                 Token::OpenCurlyBrace => {
                     state = State::CurlyBracesOpened(braces + 1);
                 }
                 Token::CloseCurlyBrace => {
                     if braces == 1 {
-                        state = State::TopLevel;
+                        state = State::ImportSimbolAliasesFound;
                     } else {
                         state = State::CurlyBracesOpened(braces - 1);
                     }
                 }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
                 _ => {}
+            },
+            State::ImportSimbolAliasesFound => match token {
+                Token::Identifier("from") => {
+                    state = State::ImportSimbolAliasesFromFound;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
+            },
+            State::ImportSimbolAliasesFromFound => match token {
+                Token::StringLiteral(literal) => {
+                    imports.push(literal.to_string());
+                    state = State::IgnoringStatement;
+                }
+                Token::OpenCurlyBrace => {
+                    state = State::CurlyBracesOpened(1);
+                }
+                Token::Semicolon => {
+                    state = State::TopLevel;
+                }
+                _ => {
+                    state = State::IgnoringStatement;
+                }
             },
         }
     }

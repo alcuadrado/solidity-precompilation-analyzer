@@ -2,7 +2,7 @@ import test from "ava";
 
 import { analyze } from "../index.js";
 
-test("returns the pragmas", (t) => {
+test("returns well-formed version pragmas", (t) => {
   t.deepEqual(
     analyze(`pragma solidity 1.2.3;
 
@@ -15,9 +15,7 @@ pragma solidity ^4.5.6 >1;
   );
 });
 
-test("returns the imports", (t) => {
-  t.true(true);
-  return;
+test("returns well-formed imports", (t) => {
   t.deepEqual(
     analyze(`import "bare.sol";
 
@@ -50,3 +48,28 @@ import {something as somethingElse, other,,other2} from "multiple.sol";
     }
   );
 });
+
+test("ignores other statements and comments", (t) => {
+  t.deepEqual(
+    analyze(`//comment
+    pragma solidity 1.2.3;
+library Asd {}
+
+import "asd.sol";
+
+contract C{
+  function f() {}
+}
+
+pragma solidity ^4.5.6 >1;
+`),
+    {
+      versionPragmas: ["1.2.3", "^4.5.6 >1"],
+      imports: ["asd.sol"],
+    }
+  );
+});
+
+test.todo("recovers from malformed pragma statements");
+
+test.todo("recovers from malformed import statements");
