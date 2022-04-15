@@ -60,6 +60,9 @@ pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
                 Token::Semicolon => {
                     state = State::TopLevel;
                 }
+                Token::DocComment(_, _) => {
+                    // Do nothing
+                }
                 _ => {
                     state = State::IgnoringStatement;
                 }
@@ -106,7 +109,7 @@ pub fn analyze(input: String) -> Result<AnalysisResult, Error> {
             },
             State::PragmaSolidityFound => match token {
                 Token::StringLiteral(literal) => {
-                    version_pragmas.push(literal.to_string());
+                    version_pragmas.push(literal.replace(['\r', '\n'], ""));
                     state = State::IgnoringStatement;
                 }
                 Token::OpenCurlyBrace => {
